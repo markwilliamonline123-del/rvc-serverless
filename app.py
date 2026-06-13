@@ -7,11 +7,12 @@ import librosa
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 app = FastAPI(title="Unified RVC Serverless System Engine")
 
-# Enable global CORS permissions so your frontend can connect seamlessly
+# Allow all origins for seamless communication
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -27,6 +28,13 @@ class TrainingInput(BaseModel):
     voice_name: str
     audio: str  # Base64 string
 
+# --- NEW: SERVE THE DASHBOARD DIRECTLY FROM THE GPU CONTAINER ---
+@app.get("/", response_class=HTMLResponse)
+def serve_dashboard():
+    # This automatically feeds the UI straight to your mobile browser window
+    with open("index.html", "r") as f:
+        return f.read()
+
 @app.get("/ping")
 def ping():
     return {"status": "healthy"}
@@ -40,7 +48,6 @@ async def handle_training(payload: TrainingInput):
 
     user_model_dir = f"/models/{user_id}"
     os.makedirs(user_model_dir, exist_ok=True)
-    
     temp_audio_path = f"/tmp/train_{user_id}.wav"
     
     try:
@@ -66,8 +73,6 @@ async def handle_training(payload: TrainingInput):
         
         return {
             "status": "success",
-            "user_id": user_id,
-            "voice_name": safe_voice_name,
             "message": "Voice profile successfully compiled and saved to volume."
         }
     except Exception as e:
@@ -95,7 +100,6 @@ def load_user_voice(user_id: str, voice_name: str):
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     current_identity = None
-    weights = None
     try:
         while True:
             message = await websocket.receive_text()
@@ -119,12 +123,10 @@ async def websocket_endpoint(websocket: WebSocket):
             
             out_b64 = base64.b64encode(pcm_out.tobytes()).decode('utf-8')
             await websocket.send_json({
-                "audio_chunk": out_b64,
-                "user_id": user_id,
-                "voice_name": voice_name
+                "audio_chunk": out_b64
             })
     except WebSocketDisconnect:
-        print("Socket closed.")
+        print("Socket disconnected.")
     except Exception as e:
         await websocket.close()
 
