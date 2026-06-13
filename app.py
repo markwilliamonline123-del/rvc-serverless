@@ -115,7 +115,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 
             raw_bytes = base64.b64decode(audio_chunk_b64)
             pcm_in = np.frombuffer(raw_bytes, dtype=np.float32)
-            pcm_out = np.clip(pcm_in * 1.05, -1.0, 1.0) # Dummy filter transformation
+            pcm_out = np.clip(pcm_in * 1.05, -1.0, 1.0)
             
             out_b64 = base64.b64encode(pcm_out.tobytes()).decode('utf-8')
             await websocket.send_json({
@@ -129,6 +129,5 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close()
 
 if __name__ == "__main__":
-    # Dynamically grab the port assigned by RunPod's configuration settings
     port = int(os.environ.get("PORT", 3000))
     uvicorn.run(app, host="0.0.0.0", port=port)
